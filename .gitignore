@@ -1,0 +1,7 @@
+runs/
+clones/
+.claude/
+/fabrica
+/fabrica-consola
+tools/node_modules/
+*.env
