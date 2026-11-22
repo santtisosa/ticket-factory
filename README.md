@@ -16,274 +16,265 @@
 ║        ╚═╝     ╚═╝  ╚═╝ ╚═════╝   ╚═╝    ╚═════╝ ╚═╝  ╚═╝   ╚═╝           ║
 ║                                                                           ║
 ╟───────────────────────────────────────────────────────────────────────────╢
-║          ticket  ─▶  spec  ─▶  código  ─▶  revisión  ─▶  tu dale          ║
+║    ticket  ─▶  spec  ─▶  código  ─▶  revisión  ─▶  aprobación  ─▶  PR     ║
 ╚═══════════════════════════════════════════════════════════════════════════╝
 ```
 
-**Una línea de montaje de agentes que lleva un ticket hasta una rama lista para tu "dale".**
+<p align="center"><b>Orquestador de agentes que lleva un ticket desde la descripción hasta una rama revisada, probada y lista para aprobar.</b></p>
 
-Le das un ticket: un issue de GitHub, una tarjeta de un tablero o una frase en la terminal. La fábrica escribe la spec,
-implementa en una rama aislada y corre los tests de tu repo. Después la hace revisar por varios agentes y decide con
-reglas fijas si está lista.
+<p align="center">
+  <a href="#instalación">Instalación</a> ·
+  <a href="#inicio-rápido">Inicio rápido</a> ·
+  <a href="#configuración">Configuración</a> ·
+  <a href="#comandos">Comandos</a> ·
+  <a href="#seguridad">Seguridad</a>
+</p>
 
-Nada sale de tu máquina hasta que vos digas `dale`. Recién ahí pushea y abre la PR.
-
-Cada puesto de la línea es un proceso de [Claude Code](https://code.claude.com) en modo headless (`claude -p`), con su
-propio prompt, sus herramientas y su esquema de salida. Los encadena un orquestador en Go que **no es un modelo**: no
-razona, no improvisa y no aprueba nada por su cuenta.
-
-> **Estado: en construcción.** La fábrica existe y se usa a diario sobre repos reales; ahora se está separando
-> de ese uso para que sirva a cualquiera. Este repo tiene por ahora la documentación de cómo va a funcionar; el
-> código se publica cuando pase sus pruebas en un Linux limpio. Lo que describe este README es el objetivo de la
-> primera versión.
+> **Estado del proyecto: en desarrollo.** ticket-factory se usa en producción desde octubre de 2026 sobre repositorios
+> reales y se está generalizando para su distribución pública. Este repositorio contiene por ahora la documentación de
+> la versión 0.1; el código se publica una vez superadas las pruebas de integración en Linux.
 
 ---
 
-## Qué hace
+## Descripción
+
+ticket-factory recibe un ticket (un issue de GitHub, una tarjeta de un tablero o una descripción por línea de comandos)
+y lo procesa a través de una línea de etapas especializadas: especificación, implementación, pruebas, revisión
+múltiple y decisión. El resultado es una rama con el cambio implementado, sus pruebas de aceptación y un informe de
+revisión, a la espera de aprobación humana.
+
+Cada etapa es una ejecución aislada de [Claude Code](https://code.claude.com) en modo no interactivo (`claude -p`), con
+su propio prompt, herramientas habilitadas y esquema de salida. La orquestación la realiza un proceso en Go
+determinista: no interpreta, no improvisa y no aprueba cambios por su cuenta. Ningún cambio sale de la máquina local
+sin una aprobación explícita.
+
+## Arquitectura
 
 ```
                                                           ┌───────────┐
                                                         ┌▶│ seguridad │─┐
 ┌─────────┐                ┌─────────────┐              │ └───────────┘ │
 │   logs  │─┐              │   cerebro   │              │               │
-└─────────┘ │              └──────┬──────┘              │ ┌───────────┐ │                              ┌╌╌╌╌╌╌┐
-            │                     │                     ├▶│     ux    │─┤                            ┌▶╎ main ╎─┐
-            │                     │                     │ └───────────┘ │                            │ ╎a mano╎ │
-            │                     ▼                     │               │                            │ └╌╌╌╌╌╌┘ │
-┌─────────┐ │ ┌─────────┐  ┌─────────────┐  ┌─────────┐ │ ┌───────────┐ │ ┌──────────┐  ┌──────────┐ │          │ ┌╌╌╌╌╌╌┐
-│ tickets │─┼▶│ entrada │─▶│ spec writer │─▶│ builder │─┼▶│     ui    │─┼▶│ approver │─▶│ ¿humano? │─┤          ├▶╎ prod ╎
-└─────────┘ │ └─────────┘  └─────────────┘  └─────────┘ │ └───────────┘ │ └─────┬────┘  └──────────┘ │          │ ╎a mano╎
-            │                                    ▲      │               │       │                    │          │ └╌╌╌╌╌╌┘
-            │                                    │      │ ┌───────────┐ │       │                    │ ┌──────┐ │
-            │                                    │      ├▶│   código  │─┤       │                    └▶│  PR  │─┘
-┌─────────┐ │                                    │      │ └───────────┘ │       │                      └──────┘
+└─────────┘ │              └──────┬──────┘              │ ┌───────────┐ │                                ┌╌╌╌╌╌╌┐
+            │                     │                     ├▶│     ux    │─┤                              ┌▶╎ main ╎─┐
+            │                     │                     │ └───────────┘ │                              │ ╎manual╎ │
+            │                     ▼                     │               │                              │ └╌╌╌╌╌╌┘ │
+┌─────────┐ │ ┌─────────┐  ┌─────────────┐  ┌─────────┐ │ ┌───────────┐ │ ┌──────────┐  ┌────────────┐ │          │ ┌╌╌╌╌╌╌┐
+│ tickets │─┼▶│ entrada │─▶│ spec writer │─▶│ builder │─┼▶│     ui    │─┼▶│ decisión │─▶│ aprobación │─┤          ├▶╎ prod ╎
+└─────────┘ │ └─────────┘  └─────────────┘  └─────────┘ │ └───────────┘ │ └─────┬────┘  └────────────┘ │          │ ╎manual╎
+            │                                    ▲      │               │       │                      │          │ └╌╌╌╌╌╌┘
+            │                                    │      │ ┌───────────┐ │       │                      │ ┌──────┐ │
+            │                                    │      ├▶│   código  │─┤       │                      └▶│  PR  │─┘
+┌─────────┐ │                                    │      │ └───────────┘ │       │                        └──────┘
 │  prompt │─┘                                    │      │               │       │
 └─────────┘                                      │      │ ┌───────────┐ │       │
                                                  │      └▶│ resultado │─┘       │
                                                  │        └───────────┘         │
                                                  │                              │
-                                                 └─ vuelve con fallas · máx. 2 ─┘
+                                                 └ reintento con hallazgos · ≤2 ┘
 ```
 
-1. **Entrada.** Junta lo que llega, saca duplicados y tapa datos personales (mails, teléfonos, tokens) antes de que lo
-   lea un modelo. Lo que viene de un log o de un tercero entra como `PROPUESTA` y no arranca hasta que lo aceptes.
-2. **Spec writer.** Escribe una spec de una página con criterios de aceptación `CA-1`, `CA-2`…
-   - Si una duda cambia el alcance, frena y te pregunta en vez de inventar.
-   - Le contestás con `fabrica continuar <id> "<respuestas>"`.
-3. **Builder.** Implementa en un worktree propio, dentro del sandbox de Claude Code.
-   - Escribe solo en la rama de la tarea, sin push y con la red restringida.
-   - Escribe un test por criterio.
-4. **Chequeo.** La fábrica corre el comando de tests de tu repo **afuera** del sandbox, con Docker si hace falta. Si
-   queda rojo, el Builder retoma su sesión con la salida y lo arregla sin gastar una vuelta.
-5. **Revisores.**
-   - Seguridad y código revisan siempre. UX y UI, si la tarea toca pantallas y tu repo sabe levantarse.
-   - Cada hallazgo necesita evidencia (`archivo:línea`): sin evidencia no hay hallazgo.
-   - Si los tenés instalados, también corren gitleaks, semgrep, gosec, govulncheck y `npm audit`.
-6. **Approver.** Es código Go, no un modelo.
-   - Pasa si el Builder terminó, el chequeo está verde y no hay hallazgos graves con evidencia.
-   - Si no, le devuelve al Builder la lista concreta, hasta dos vueltas.
-7. **Tu dale.** Mirás la rama y decidís; si configuraste la vista previa, también podés ver la app andando.
-   `fabrica dale` pushea exactamente el commit aprobado, abre la PR y dispara el CI.
-8. **Después del merge** (todo opcional):
-   - Despliega con el comando que configuraste y prueba que la app responda.
-   - Redacta un aviso para quien pidió el cambio: lo ves con `fabrica aviso <id>` y lo mandás con `--mandar`, por
-     mail o como comentario en el issue.
-9. **Cerebro** (opcional). El Bibliotecario anota en una carpeta de markdown tuya lo que aprendió de cada tarea, y
-   el Jefe contesta preguntas sobre esa carpeta citando el archivo y la línea (`fabrica ask "<pregunta>"`). El Spec
-   writer y el Builder la leen antes de trabajar.
+| Etapa | Responsabilidad |
+|---|---|
+| **Entrada** | Normaliza lo que llega, elimina duplicados y enmascara datos personales (correos, teléfonos, credenciales) antes de que los procese un modelo. Lo que proviene de logs o de terceros ingresa como `PROPUESTA` y requiere aceptación. |
+| **Spec writer** | Redacta una especificación de una página con criterios de aceptación numerados (`CA-1`, `CA-2`, …). Si detecta una ambigüedad que afecta el alcance, se detiene y la plantea en lugar de suponer. |
+| **Builder** | Implementa el cambio en un worktree aislado, dentro del sandbox de Claude Code: escritura limitada a la rama de la tarea, sin credenciales de publicación y con red restringida. Escribe una prueba por criterio. |
+| **Chequeo** | Ejecuta el comando de verificación del repositorio fuera del sandbox, con los servicios que el proyecto declare. Si falla, el Builder retoma su sesión con la salida completa, sin consumir una iteración. |
+| **Revisión** | Revisores independientes de seguridad y código; de UX y UI cuando el cambio afecta interfaces; y del resultado observable (pantallas, documentos, correos) cuando corresponde. Todo hallazgo exige evidencia `archivo:línea`. Se complementa con gitleaks, semgrep, gosec, govulncheck y `npm audit` cuando están instalados. |
+| **Decisión** | Función determinista en Go. Aprueba si la implementación terminó, el chequeo pasó y no hay hallazgos graves con evidencia; de lo contrario devuelve al Builder la lista concreta, con un máximo de dos iteraciones. |
+| **Aprobación** | Revisión humana de la rama, con vista previa opcional de la aplicación. `fabrica aprobar` publica exactamente el commit aprobado, abre el pull request y dispara el CI. |
+| **Post-merge** | Opcional: despliegue mediante un comando configurable con verificación de salud, y notificación a quien originó el ticket. |
+| **Conocimiento** | Opcional: una base de notas en Markdown que se consulta antes de especificar y se actualiza al cerrar cada tarea. Las respuestas citan archivo y línea verificables. |
 
-## Por qué así
+## Principios de diseño
 
-- **Un humano antes de que algo salga.** Los agentes leen texto de terceros (tickets, logs), así que ninguno tiene
-  credenciales de push ni de mail. Lo que sale de la máquina lo hace el código Go, después de tu dale.
-- **Reglas fijas para aprobar.** Un modelo puede opinar, pero no aprobar. El approver es una función determinista que
-  podés leer (`internal/fab/approver.go`) y volver a correr sobre tareas viejas (`fabrica replay`).
-- **Fácil de auditar.** Todo lo de una tarea queda en `runs/<id>/`: la entrada, la spec, cada salida, el costo y un
-  `events.jsonl`. La página en `http://127.0.0.1:7171` muestra el diagrama y marca el puesto que está trabajando.
-- **Topes de gasto.** Por llamada y por día.
+- **Aprobación humana obligatoria.** Los agentes procesan contenido no confiable (tickets, logs), por lo que ninguno
+  dispone de credenciales de publicación. Toda acción externa la ejecuta el orquestador tras una aprobación explícita.
+- **Decisión determinista.** Un modelo puede emitir hallazgos, pero no aprobar. La regla de decisión es código legible
+  (`internal/fab/approver.go`) y reproducible sobre tareas anteriores (`fabrica replay`).
+- **Trazabilidad completa.** Cada tarea conserva en `runs/<id>/` la entrada, la especificación, la salida de cada
+  etapa, el costo y un registro de eventos (`events.jsonl`). El panel web en `http://127.0.0.1:7171` muestra el estado
+  de la línea en tiempo real.
+- **Costos acotados.** Límites configurables por llamada y por día.
 
 ## Requisitos
 
-| | Para qué | ¿Obligatorio? |
+| Componente | Uso | Requerido |
 |---|---|---|
-| macOS o Linux | El sandbox de Claude Code usa Seatbelt en macOS y bubblewrap en Linux. Windows nativo no. | sí |
-| [Claude Code](https://code.claude.com) | Cada puesto es un `claude -p`. Lo instalás vos y entrás con **tu** cuenta. `fabrica doctor` te dice si tu versión alcanza. | sí |
-| Go 1.26 o más | Para compilar. | sí |
-| git y [gh](https://cli.github.com), con `gh auth login` | Worktrees, PRs y CI. | sí |
-| Docker | Para los servicios de test de tu proyecto (una base, por ejemplo), la vista previa y UX/UI. | no |
-| Node | Para los revisores de UX y UI (Playwright). | no |
-| gitleaks, semgrep, gosec, govulncheck | Escaneo extra. Si falta uno, la revisión lo dice ("sin revisar") y no aprueba en silencio. | no |
+| macOS o Linux | El sandbox de Claude Code utiliza Seatbelt (macOS) o bubblewrap (Linux). Windows nativo no está soportado. | Sí |
+| [Claude Code](https://code.claude.com) | Motor de cada etapa. Se instala por separado y se autentica con la cuenta del usuario. `fabrica doctor` verifica la versión mínima. | Sí |
+| Go 1.26+ | Compilación. | Sí |
+| git y [GitHub CLI](https://cli.github.com) autenticado | Worktrees, pull requests y CI. | Sí |
+| Docker | Servicios de prueba del proyecto, vista previa y revisión de UX/UI. | No |
+| Node.js | Revisores de UX/UI (Playwright). | No |
+| gitleaks, semgrep, gosec, govulncheck | Análisis estático adicional. Si alguno falta, la revisión lo informa como no ejecutado. | No |
 
 ## Instalación
 
 ```bash
 git clone https://github.com/santtisosa/ticket-factory
 cd ticket-factory
-make build          # compila ./fabrica con la página embebida
-./fabrica doctor    # revisa claude, la autenticación, gh, git, Docker y el sandbox
+make build
+./fabrica doctor
 ```
 
-## Primer ticket
+`fabrica doctor` verifica Claude Code, la autenticación, GitHub CLI, git, Docker y la disponibilidad del sandbox.
+
+## Inicio rápido
 
 ```bash
-mkdir ~/mi-fabrica && cd ~/mi-fabrica
-fabrica init                                # crea un fabrica.yaml de ejemplo
-$EDITOR fabrica.yaml                        # apuntalo a tu repo
-fabrica add --proyecto demo "El endpoint /health devuelve la versión de la app"
-fabrica run --once                          # procesa esa tarea y termina
-fabrica ver <id>                            # qué hizo, cuánto costó y en qué rama quedó
-fabrica dale <id> --seco                    # muestra qué pushearía, sin pushear
+mkdir ~/espacio-fabrica && cd ~/espacio-fabrica
+fabrica init                    # genera fabrica.yaml y reglas-de-la-casa.md
+fabrica add --proyecto demo "Agregar la versión de la aplicación al endpoint /health"
+fabrica run --once              # procesa la tarea y finaliza
+fabrica ver <id>                # detalle: etapas, costo, rama resultante
+fabrica aprobar <id> --seco     # muestra qué se publicaría, sin publicar
+fabrica aprobar <id>            # publica la rama y abre el pull request
 ```
 
-Cuando te convenza: `fabrica dale <id>`.
+## Configuración
 
-## Configuración: `fabrica.yaml`
-
-Un archivo por espacio de trabajo. **Nunca pongas secretos acá**: van por variables de entorno o en
-`~/.config/ticket-factory/env`, con permisos 600.
+La configuración vive en `fabrica.yaml`, uno por espacio de trabajo. Los secretos no se declaran en este archivo: se
+leen de variables de entorno o de `~/.config/ticket-factory/env` (permisos `600`).
 
 ```yaml
 proyectos:
   demo:
     repos:
       - nombre: demo-api
-        ruta: git@github.com:tu-usuario/demo-api.git
-        check: make check            # lo que tiene que dar verde; si falta, la fábrica lo deduce
-        deploy: ./scripts/deploy.sh  # opcional: corre después del merge
+        ruta: git@github.com:organizacion/demo-api.git
+        check: make check                 # verificación que debe pasar; si se omite, se infiere
+        deploy: ./scripts/deploy.sh       # opcional, posterior al merge
         smoke: https://api.demo.example.com/health
       - nombre: demo-web
-        ruta: git@github.com:tu-usuario/demo-web.git
+        ruta: git@github.com:organizacion/demo-web.git
         check: npm run lint && npm test
-        frontend: true               # activa los revisores de UX y UI
-    servicios:                       # opcional: lo que tus tests necesitan levantado (con Docker)
+        frontend: true                    # habilita la revisión de UX y UI
+    servicios:                            # opcional: dependencias de las pruebas (Docker)
       - imagen: mysql:8.4
         puerto: 3306
         exporta: { TESTDB_DSN: "root:root@tcp(127.0.0.1:{puerto})/" }
-    preview:                         # opcional: levantar la app de la rama para mirarla antes del dale
+    preview:                              # opcional: vista previa de la rama antes de aprobar
       comandos: ["npm run dev -- --port {puerto}"]
-    aviso:
-      para: quien-pidio@example.com  # o el autor del issue, si el canal es "comentario"
+    notificacion:
+      para: solicitante@example.com
 
 fuentes:
   github-issues:
-    repo: tu-usuario/demo-api
-    etiqueta: fabrica                # solo los issues con esta etiqueta
-    autores: [tu-usuario]            # y solo de estas personas
-  betterstack: {}                    # incidentes de producción, como PROPUESTA (token por env)
-  # exec: un comando tuyo que imprime tickets en JSON, para cualquier otro tablero (ver docs/fuentes.md)
+    repo: organizacion/demo-api
+    etiqueta: fabrica                     # solo issues con esta etiqueta
+    autores: [usuario-autorizado]         # y solo de estos autores
+  betterstack: {}                         # incidentes de producción, como PROPUESTA
+  # exec: integración con cualquier sistema mediante un comando que emite JSON (docs/fuentes.md)
 
-aviso:
-  canal: smtp                        # smtp | comentario | exec; el servidor va por env (FABRICA_SMTP_*)
-  de: fabrica@example.com
+notificacion:
+  canal: smtp                             # smtp | comentario | exec (servidor en FABRICA_SMTP_*)
+  remitente: fabrica@example.com
 
-cerebro:
-  repo: ~/notas-del-equipo           # un repo git con markdown; opcional
+conocimiento:
+  repo: ~/notas-del-equipo                # repositorio git de Markdown
   escribibles: ["lecciones.md", "modulos/"]
 
-reglas: reglas-de-la-casa.md         # se suman a los prompts: tu stack, tus convenciones, qué no tocar
-diseno: DISENO.md                    # opcional: lo que miran los revisores de UI
+reglas: reglas-de-la-casa.md              # convenciones del equipo, incorporadas a los prompts
+diseno: DISENO.md                         # guía visual para la revisión de UI
 
 merge:
-  solo: false                        # true: mergea sola lo no sensible con el check requerido en verde
-  check_requerido: ci-ok
+  automatico: false                       # true: integra cambios no sensibles con el check en verde
+  check_requerido: ci
   sensibles: ["**/migrations/**", "**/auth/**", ".github/**"]
 
-topes:
+limites:
   por_llamada_usd: 3
   por_dia_usd: 20
 ```
 
 ## Comandos
 
-| Comando | Qué hace |
+| Comando | Descripción |
 |---|---|
-| `fabrica add [--proyecto <p>] "<tarea>"` | Carga una tarea |
-| `fabrica status` | Muestra una fila por tarea |
-| `fabrica ver <id>` | Muestra de dónde vino la tarea, sus eventos, el costo y los archivos |
-| `fabrica run [--once]` | Procesa la cola, una tarea por proyecto a la vez |
-| `fabrica serve [--abrir]` | Junta `run`, la lectura de fuentes y la página en un solo proceso |
-| `fabrica web [--abrir]` | Levanta solo la página |
-| `fabrica ingestar` | Lee las fuentes una vez (solo lectura) |
-| `fabrica aceptar <id>` / `descartar <id>` | Decide sobre una `PROPUESTA` |
-| `fabrica continuar <id> "<respuestas>"` | Retoma una tarea cuya spec frenó con preguntas |
-| `fabrica reintentar <id>` / `cancelar <id>` | Devuelve una `TRABADA` a la cola, o la descarta |
-| `fabrica prioridad <id> <n>` | Cambia la prioridad: más alta, antes |
-| `fabrica pausar` / `seguir` | Deja de tomar tareas nuevas, o vuelve a tomarlas |
-| `fabrica preview <id>` / `preview bajar` | Levanta la app de una tarea que espera tu dale, o la baja |
-| `fabrica dale <id> [--seco]` | **Tu dale**: pushea lo aprobado, abre la PR y corre el CI |
-| `fabrica prs` | Muestra el estado de CI y de merge de las PRs abiertas |
-| `fabrica mergeado <id>` | Cierra una tarea que mergeaste a mano en un repo sin GitHub |
-| `fabrica desplegar <id> [--seco]` | Despliega una tarea mergeada con el comando del repo |
-| `fabrica aviso <id> [--mandar] [--para <mail>]` | Muestra el aviso de una tarea en producción; `--mandar` lo envía |
-| `fabrica ask "<pregunta>"` | Le pregunta al Jefe; contesta con citas verificadas del cerebro |
-| `fabrica aprender <ruta>` | El Bibliotecario destila una carpeta de referencia en el cerebro |
-| `fabrica bibliotecario <id>` / `lint-cerebro` / `indice` | Aprende de una tarea cerrada / busca contradicciones / rehace el índice |
-| `fabrica cerebro-sync [--seco]` | Lleva lo aprendido al repo del cerebro como rama y PR en borrador |
-| `fabrica probar-app` | Levanta la app desde main, la escanea y la baja (sin agentes) |
-| `fabrica replay` / `metricas` | Re-decide vueltas viejas con las reglas de hoy, o muestra costos y frenos |
-| `fabrica limpiar` | Saca los worktrees de las tareas cerradas |
-| `fabrica init` / `doctor` | Crea `fabrica.yaml`, o revisa que esté todo |
+| `fabrica init` | Genera la configuración inicial del espacio de trabajo |
+| `fabrica doctor` | Verifica dependencias, autenticación y sandbox |
+| `fabrica add [--proyecto <p>] "<tarea>"` | Encola una tarea |
+| `fabrica status` | Lista las tareas y su estado |
+| `fabrica ver <id>` | Detalle de una tarea: origen, eventos, costo y artefactos |
+| `fabrica run [--once]` | Procesa la cola (una tarea por proyecto en simultáneo) |
+| `fabrica serve [--abrir]` | Procesamiento, lectura de fuentes y panel web en un solo proceso |
+| `fabrica web [--abrir]` | Solo el panel web |
+| `fabrica ingestar` | Lee las fuentes configuradas una vez |
+| `fabrica aceptar <id>` · `descartar <id>` | Resuelve una `PROPUESTA` |
+| `fabrica continuar <id> "<respuestas>"` | Reanuda una tarea detenida en la especificación |
+| `fabrica reintentar <id>` · `cancelar <id>` | Reencola una tarea `TRABADA` o la descarta |
+| `fabrica prioridad <id> <n>` | Ajusta la prioridad en la cola |
+| `fabrica pausar` · `seguir` | Suspende o reanuda la toma de tareas |
+| `fabrica preview <id>` · `preview bajar` | Levanta o detiene la vista previa de una tarea |
+| `fabrica aprobar <id> [--seco]` | Publica el commit aprobado, abre el pull request y dispara el CI |
+| `fabrica prs` | Estado de CI y merge de los pull requests abiertos |
+| `fabrica desplegar <id> [--seco]` | Despliega una tarea integrada |
+| `fabrica notificar <id> [--enviar]` | Muestra o envía la notificación de una tarea en producción |
+| `fabrica preguntar "<consulta>"` | Consulta la base de conocimiento, con citas verificadas |
+| `fabrica aprender <ruta>` | Incorpora una carpeta de referencia a la base de conocimiento |
+| `fabrica replay` · `metricas` | Reevalúa decisiones pasadas · costos y causas de bloqueo |
+| `fabrica limpiar` | Elimina los worktrees de tareas cerradas |
 
-## Estados de una tarea
+## Ciclo de vida de una tarea
 
 ```
-PROPUESTA ─aceptar─▶ PENDIENTE ─▶ EN_CURSO ─▶ ESPERA_TU_DALE ─dale─▶ PR_ABIERTA ─▶ CI_VERDE ─▶ MERGEADA
-                                     │                                                             │
-                                     └─▶ TRABADA  (con el motivo: reintentar o continuar)         ▼
-                                                                                     DEPLOY_PENDIENTE (si hay deploy)
+PROPUESTA ─aceptar─▶ PENDIENTE ─▶ EN_CURSO ─▶ ESPERANDO_APROBACION ─aprobar─▶ PR_ABIERTO ─▶ CI_VERDE ─▶ INTEGRADA
+                                     │                                                                     │
+                                     └─▶ TRABADA (con motivo; reintentar o continuar)                     ▼
+                                                                                                 DESPLIEGUE_PENDIENTE
 ```
 
-## Qué sale de tu máquina
+## Tráfico de red
 
-| Qué | Hacia dónde | Cuándo |
+| Datos | Destino | Momento |
 |---|---|---|
-| Prompts y código del repo | Anthropic | En cada puesto (es Claude Code) |
-| Paquetes | npm y el proxy de Go | El Builder, solo hacia una lista cerrada de dominios. El chequeo (`npm ci`, `go test`) corre fuera del sandbox, con red abierta |
-| Reglas y bases de vulnerabilidades | semgrep (`p/golang`, `p/typescript`, `p/owasp-top-ten`), npm audit, govulncheck | En la revisión, si los tenés instalados |
-| Playwright MCP | npm (`npx @playwright/mcp`) | El revisor de UX, si hay `frontend: true` |
-| Lectura de issues, proyectos y PRs | GitHub, con tu `gh` | Al leer las fuentes y al seguir las PRs |
-| El push de la rama y la PR | GitHub | **Solo** con `fabrica dale` |
-| El merge | GitHub | Solo si activaste `merge.solo` y el check requerido está en verde |
-| El deploy | Lo que haga tu comando | Solo si configuraste `deploy:` |
-| El aviso | Tu servidor SMTP o GitHub | Solo con `fabrica aviso <id> --mandar` |
-| El cerebro | El remoto de tu repo de notas | Solo con `fabrica cerebro-sync` |
+| Prompts y código del repositorio | Anthropic | En cada etapa |
+| Dependencias | npm y proxy de Go | Builder (lista cerrada de dominios); el chequeo se ejecuta fuera del sandbox con red abierta |
+| Reglas y bases de vulnerabilidades | semgrep, npm audit, govulncheck | Durante la revisión, si están instalados |
+| Servidor MCP de Playwright | npm | Revisión de UX, en repositorios con `frontend: true` |
+| Lectura de issues, proyectos y pull requests | GitHub | Lectura de fuentes y seguimiento |
+| Publicación de la rama y pull request | GitHub | **Únicamente** con `fabrica aprobar` |
+| Merge | GitHub | Solo con `merge.automatico` activo y el check requerido en verde |
+| Despliegue | Según el comando configurado | Solo si existe `deploy` |
+| Notificación | Servidor SMTP o GitHub | Solo con `fabrica notificar --enviar` |
 
 ## Costos
 
-El uso de Claude Code lo pagás vos, con tu cuenta.
-- Como referencia, en el uso real una tarea chica cuesta entre US$ 3 y US$ 15 y tarda de 20 a 30 minutos. Una que
-  necesita dos vueltas cuesta y tarda más o menos el doble.
-- `fabrica metricas` muestra el costo por puesto y por tarea.
-- Los topes de `fabrica.yaml` cortan antes de pasarse.
+El consumo de Claude Code se factura a la cuenta del usuario. Como referencia operativa, una tarea acotada insume
+entre USD 3 y USD 15 y entre 20 y 30 minutos; una tarea con dos iteraciones, aproximadamente el doble. `fabrica
+metricas` desglosa el costo por etapa y por tarea, y los límites de `fabrica.yaml` interrumpen la ejecución antes de
+superarlos.
 
 ## Seguridad
 
-- **Tratá los tickets como texto no confiable.** Cualquiera puede escribir instrucciones dentro de un issue. La fábrica
-  se los pasa a los agentes marcados como datos, nunca como órdenes. Usá `autores:` para limitar quién puede cargar
-  trabajo.
-- **El Builder corre en el sandbox de Claude Code**, con `failIfUnavailable`: si el sandbox no arranca, la tarea no corre.
-- **El chequeo corre fuera del sandbox**, con Docker y red, y ejecuta el código de tu repo más lo que escribió el
-  Builder. Usá la fábrica solo sobre repos en los que confiás, mejor en una máquina o VM dedicada.
-- **Los agentes no ven tus credenciales.** No les llega ninguna variable de entorno con secretos, y no pueden leer
-  `~/.ssh`, `~/.aws`, `~/.config/gh` ni tu archivo de credenciales.
+- **Contenido no confiable.** El texto de un ticket puede contener instrucciones maliciosas. Los agentes lo reciben
+  delimitado como datos, nunca como órdenes. Se recomienda restringir los autores admitidos con `autores`.
+- **Sandbox obligatorio.** El Builder se ejecuta en el sandbox de Claude Code con `failIfUnavailable`: si el sandbox no
+  está disponible, la tarea no se ejecuta.
+- **Chequeo fuera del sandbox.** La verificación ejecuta el código del repositorio y los cambios del Builder con acceso
+  a Docker y a la red. Se recomienda operar sobre repositorios de confianza, en una máquina o VM dedicada.
+- **Aislamiento de credenciales.** Ninguna variable de entorno con secretos llega a los agentes, que tampoco pueden
+  leer `~/.ssh`, `~/.aws`, `~/.config/gh` ni el archivo de credenciales de la herramienta.
 
-## Claude Code y tu cuenta
+## Claude Code y autenticación
 
-ticket-factory corre Claude Code, pero no lo incluye ni lo modifica: lo instalás aparte y entrás con tu propia cuenta.
-- Para uso automatizado, la documentación de Anthropic recomienda una API key de la
-  [Claude Console](https://platform.claude.com), o Bedrock, Vertex o Foundry.
-- Si usás una suscripción, revisá antes los [términos de uso](https://code.claude.com/docs/en/legal-and-compliance).
-- Sos responsable de lo que hagan los agentes que corrés.
+ticket-factory ejecuta Claude Code sin incluirlo ni modificarlo; cada usuario lo instala y autentica con su propia
+cuenta. Para uso automatizado, la documentación de Anthropic recomienda una API key de la
+[Claude Console](https://platform.claude.com) o un proveedor compatible (Amazon Bedrock, Google Vertex AI, Microsoft
+Foundry). Quien utilice una suscripción debe revisar previamente los
+[términos aplicables](https://code.claude.com/docs/en/legal-and-compliance). Cada usuario es responsable de las
+acciones de los agentes que ejecuta.
 
-Este proyecto no está hecho, avalado ni asociado con Anthropic.
+ticket-factory es un proyecto independiente, sin afiliación con Anthropic.
 
-## Limitaciones
+## Limitaciones conocidas
 
-- Está pensada para GitHub (usa `gh`). GitLab y otros, todavía no.
-- Corre una tarea por proyecto a la vez.
-- Los revisores de UX y UI necesitan que tu repo se pueda levantar con un comando.
-- Todo está en español: comandos, estados, prompts y la página.
+- Integración con GitHub únicamente; GitLab y otros proveedores no están soportados.
+- Una tarea en ejecución por proyecto.
+- La revisión de UX/UI requiere que el proyecto pueda levantarse mediante un comando.
+- Interfaz, comandos y prompts en español.
 
 ## Licencia
 
-[MIT](LICENSE).
+Distribuido bajo licencia [MIT](LICENSE).
