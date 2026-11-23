@@ -1,0 +1,50 @@
+# Plantilla de configuración: copiar como fabrica.yaml y ajustar. Referencia: README.md, sección Configuración.
+proyectos:
+  demo:
+    repos:
+      - nombre: demo-api
+        ruta: git@github.com:organizacion/demo-api.git
+        check: make check                 # verificación que debe pasar; si se omite, se infiere
+        deploy: ./scripts/deploy.sh       # opcional, posterior al merge
+        smoke: https://api.demo.example.com/health
+      - nombre: demo-web
+        ruta: git@github.com:organizacion/demo-web.git
+        check: npm run lint && npm test
+        frontend: true                    # habilita la revisión de UX y UI
+    servicios:                            # opcional: dependencias de las pruebas (Docker)
+      - imagen: mysql:8.4
+        puerto: 3306
+        entorno: { MYSQL_ROOT_PASSWORD: root }   # solo valores de prueba
+        exporta: { TESTDB_DSN: "root:root@tcp(127.0.0.1:{puerto})/" }
+    preview:                              # opcional: vista previa de la rama antes de aprobar
+      comandos: ["npm run dev -- --port {puerto}"]
+    notificacion:
+      para: solicitante@example.com
+
+fuentes:
+  github-issues:
+    repo: organizacion/demo-api
+    etiqueta: fabrica                     # solo issues con esta etiqueta
+    autores: [usuario-autorizado]         # y solo de estos autores
+  betterstack: {}                         # incidentes de producción, como PROPUESTA
+  # exec: integración con cualquier sistema mediante un comando que emite JSON (docs/fuentes.md)
+
+notificacion:
+  canal: smtp                             # smtp | comentario | exec (servidor en FABRICA_SMTP_*)
+  remitente: fabrica@example.com
+
+conocimiento:
+  repo: ~/notas-del-equipo                # repositorio git de Markdown
+  escribibles: ["lecciones.md", "modulos/"]
+
+reglas: reglas-del-equipo.md              # convenciones del equipo, incorporadas a los prompts
+diseno: DISENO.md                         # guía visual para la revisión de UI
+
+merge:
+  automatico: false                       # true: integra cambios no sensibles con el check en verde
+  check_requerido: ci
+  sensibles: ["**/migrations/**", "**/auth/**", ".github/**"]
+
+limites:
+  por_llamada_usd: 3
+  por_dia_usd: 20

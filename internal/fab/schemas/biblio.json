@@ -1,0 +1,22 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["nada", "escrituras"],
+  "properties": {
+    "nada": {"type": "boolean"},
+    "motivo": {"type": "string"},
+    "escrituras": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["archivo", "tipo", "resumen"],
+        "properties": {
+          "archivo": {"type": "string"},
+          "tipo": {"type": "string", "enum": ["leccion", "modulo"]},
+          "resumen": {"type": "string"}
+        }
+      }
+    }
+  }
+}

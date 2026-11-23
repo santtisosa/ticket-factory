@@ -5,3 +5,5 @@ clones/
 /fabrica-consola
 tools/node_modules/
 *.env
+/.pruebas-srt/
+/fabrica.yaml

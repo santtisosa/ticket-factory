@@ -30,9 +30,8 @@
   <a href="#seguridad">Seguridad</a>
 </p>
 
-> **Estado del proyecto: en desarrollo.** ticket-factory se usa en producción desde octubre de 2026 sobre repositorios
-> reales y se está generalizando para su distribución pública. Este repositorio contiene por ahora la documentación de
-> la versión 0.1; el código se publica una vez superadas las pruebas de integración en Linux.
+> **Estado del proyecto: versión 0.1, en desarrollo.** Probado principalmente en macOS; el soporte de Linux depende de
+> `srt` y del sandbox de Claude Code con bubblewrap.
 
 ---
 
@@ -79,7 +78,7 @@ sin una aprobación explícita.
 | **Entrada** | Normaliza lo que llega, elimina duplicados y enmascara datos personales (correos, teléfonos, credenciales) antes de que los procese un modelo. Lo que proviene de logs o de terceros ingresa como `PROPUESTA` y requiere aceptación. |
 | **Spec writer** | Redacta una especificación de una página con criterios de aceptación numerados (`CA-1`, `CA-2`, …). Si detecta una ambigüedad que afecta el alcance, se detiene y la plantea en lugar de suponer. |
 | **Builder** | Implementa el cambio en un worktree aislado, dentro del sandbox de Claude Code: escritura limitada a la rama de la tarea, sin credenciales de publicación y con red restringida. Escribe una prueba por criterio. |
-| **Chequeo** | Ejecuta el comando de verificación del repositorio fuera del sandbox, con los servicios que el proyecto declare. Si falla, el Builder retoma su sesión con la salida completa, sin consumir una iteración. |
+| **Chequeo** | Ejecuta el comando de verificación del repositorio dentro de `srt`, sin red a GitHub, con los servicios que el proyecto declare. Si falla, el Builder retoma su sesión con la salida completa, sin consumir una iteración. |
 | **Revisión** | Revisores independientes de seguridad y código; de UX y UI cuando el cambio afecta interfaces; y del resultado observable (pantallas, documentos, correos) cuando corresponde. Todo hallazgo exige evidencia `archivo:línea`. Se complementa con gitleaks, semgrep, gosec, govulncheck y `npm audit` cuando están instalados. |
 | **Decisión** | Función determinista en Go. Aprueba si la implementación terminó, el chequeo pasó y no hay hallazgos graves con evidencia; de lo contrario devuelve al Builder la lista concreta, con un máximo de dos iteraciones. |
 | **Aprobación** | Revisión humana de la rama, con vista previa opcional de la aplicación. `fabrica aprobar` publica exactamente el commit aprobado, abre el pull request y dispara el CI. |
@@ -102,29 +101,37 @@ sin una aprobación explícita.
 | Componente | Uso | Requerido |
 |---|---|---|
 | macOS o Linux | El sandbox de Claude Code utiliza Seatbelt (macOS) o bubblewrap (Linux). Windows nativo no está soportado. | Sí |
-| [Claude Code](https://code.claude.com) | Motor de cada etapa. Se instala por separado y se autentica con la cuenta del usuario. `fabrica doctor` verifica la versión mínima. | Sí |
+| [`srt`](https://github.com/anthropics/sandbox-runtime) (sandbox runtime de Anthropic) | Aísla el chequeo, el hook de cierre del Builder, la vista previa y las herramientas del escaneo. Se instala con `npm install -g @anthropic-ai/sandbox-runtime`. Sin `srt`, la tarea se detiene como falla de infraestructura y no se ejecuta código de la rama. | Sí |
+| [Claude Code](https://code.claude.com) | Motor de cada etapa. Se instala por separado y se autentica con la cuenta del usuario. | Sí |
 | Go 1.26+ | Compilación. | Sí |
-| git y [GitHub CLI](https://cli.github.com) autenticado | Worktrees, pull requests y CI. | Sí |
-| Docker | Servicios de prueba del proyecto, vista previa y revisión de UX/UI. | No |
+| git | Clones, worktrees y commits. | Sí |
+| [GitHub CLI](https://cli.github.com) | Pull requests y CI. gh no necesita sesión: la fábrica usa su propio token. | Sí, para publicar y seguir PRs |
+| `FABRICA_GITHUB_TOKEN` | Token fine-grained propio de la fábrica, limitado a los repositorios de `fabrica.yaml` (permisos en [docs/seguridad.md](docs/seguridad.md)). En el entorno o en `~/.config/ticket-factory/env` (permisos 600). La fábrica no usa las credenciales de GitHub del usuario. | Sí, para publicar y seguir PRs |
+| Docker | Servicios de prueba declarados en `fabrica.yaml`. La fábrica los levanta fuera del encierro; el código de la rama no tiene acceso a Docker. | No |
 | Node.js | Revisores de UX/UI (Playwright). | No |
 | gitleaks, semgrep, gosec, govulncheck | Análisis estático adicional. Si alguno falta, la revisión lo informa como no ejecutado. | No |
 
 ## Instalación
 
 ```bash
-git clone https://github.com/santtisosa/ticket-factory
+git clone https://github.com/santtisosa/ticket-factory.git
 cd ticket-factory
 make build
 ./fabrica doctor
 ```
 
-`fabrica doctor` verifica Claude Code, la autenticación, GitHub CLI, git, Docker y la disponibilidad del sandbox.
+`fabrica doctor` verifica que estén git, Claude Code, `srt`, Docker (requerido solo si algún proyecto declara
+`servicios`) y GitHub CLI; que `FABRICA_GITHUB_TOKEN` esté definido, y que `fabrica.yaml` sea válido y los archivos
+que declara (`reglas`, `diseno`, `conocimiento.repo` local) existan. Termina con error si falta algo requerido.
+
+Para correr la fábrica como servicio de la sesión hay ejemplos en `contrib/macos/` (launchd) y `contrib/linux/`
+(systemd).
 
 ## Inicio rápido
 
 ```bash
 mkdir ~/espacio-fabrica && cd ~/espacio-fabrica
-fabrica init                    # genera fabrica.yaml y reglas-de-la-casa.md
+fabrica init                    # genera fabrica.yaml a partir del ejemplo
 fabrica add --proyecto demo "Agregar la versión de la aplicación al endpoint /health"
 fabrica run --once              # procesa la tarea y finaliza
 fabrica ver <id>                # detalle: etapas, costo, rama resultante
@@ -153,6 +160,7 @@ proyectos:
     servicios:                            # opcional: dependencias de las pruebas (Docker)
       - imagen: mysql:8.4
         puerto: 3306
+        entorno: { MYSQL_ROOT_PASSWORD: root }   # solo valores de prueba
         exporta: { TESTDB_DSN: "root:root@tcp(127.0.0.1:{puerto})/" }
     preview:                              # opcional: vista previa de la rama antes de aprobar
       comandos: ["npm run dev -- --port {puerto}"]
@@ -175,7 +183,7 @@ conocimiento:
   repo: ~/notas-del-equipo                # repositorio git de Markdown
   escribibles: ["lecciones.md", "modulos/"]
 
-reglas: reglas-de-la-casa.md              # convenciones del equipo, incorporadas a los prompts
+reglas: reglas-del-equipo.md              # convenciones del equipo, incorporadas a los prompts
 diseno: DISENO.md                         # guía visual para la revisión de UI
 
 merge:
@@ -188,13 +196,27 @@ limites:
   por_dia_usd: 20
 ```
 
+La receta `preview` corre en el worktree del primer repositorio con `frontend: true` (o en el primero del proyecto), con
+`{puerto}` reemplazado por un puerto libre de `127.0.0.1` y las variables de `servicios` en el entorno. Los comandos se
+inician juntos y quedan corriendo; un paso previo se encadena con `&&` en el mismo comando (`npm ci && npm run dev`). La misma receta
+levanta la aplicación que examinan los revisores de UX y UI; sin `preview`, esas revisiones quedan sin realizar. Si la
+aplicación requiere iniciar sesión, el usuario de prueba se toma de `FABRICA_APP_USUARIO` y `FABRICA_APP_CLAVE`
+(`FABRICA_APP_LOGIN` indica el endpoint JSON de inicio de sesión; por defecto, `/api/auth/login`).
+
+`reglas` y `diseno` son archivos Markdown del equipo: el contenido de `reglas` se agrega a los prompts del Spec writer,
+del Builder y de los revisores; el de `diseno`, a los de los revisores de UX y UI. `conocimiento` es opcional: sin él,
+el Jefe (`fabrica preguntar`) y el Bibliotecario no corren. El Bibliotecario escribe solo en las rutas de
+`escribibles` (relativas al repositorio; una carpeta termina en `/`), sobre un clon propio en la rama `cerebro`;
+`fabrica cerebro-sync` lleva esos cambios al repositorio original como pull request en borrador.
+
 ## Comandos
 
 | Comando | Descripción |
 |---|---|
-| `fabrica init` | Genera la configuración inicial del espacio de trabajo |
-| `fabrica doctor` | Verifica dependencias, autenticación y sandbox |
-| `fabrica add [--proyecto <p>] "<tarea>"` | Encola una tarea |
+| `fabrica init` | Escribe `fabrica.yaml` a partir del ejemplo, si no existe |
+| `fabrica doctor` | Verifica dependencias, token y `fabrica.yaml` |
+| `fabrica help` | Lista los comandos |
+| `fabrica add [--proyecto <p>] [--prioridad <n>] "<tarea>"` | Encola una tarea |
 | `fabrica status` | Lista las tareas y su estado |
 | `fabrica ver <id>` | Detalle de una tarea: origen, eventos, costo y artefactos |
 | `fabrica run [--once]` | Procesa la cola (una tarea por proyecto en simultáneo) |
@@ -207,13 +229,18 @@ limites:
 | `fabrica prioridad <id> <n>` | Ajusta la prioridad en la cola |
 | `fabrica pausar` · `seguir` | Suspende o reanuda la toma de tareas |
 | `fabrica preview <id>` · `preview bajar` | Levanta o detiene la vista previa de una tarea |
+| `fabrica probar-app [<proyecto>]` | Levanta la aplicación desde main con la receta `preview`, la escanea y la detiene |
 | `fabrica aprobar <id> [--seco]` | Publica el commit aprobado, abre el pull request y dispara el CI |
 | `fabrica prs` | Estado de CI y merge de los pull requests abiertos |
+| `fabrica mergeado <id>` | Marca como integrada una tarea ya llevada al main local (proyectos sin GitHub) |
 | `fabrica desplegar <id> [--seco]` | Despliega una tarea integrada |
-| `fabrica notificar <id> [--enviar]` | Muestra o envía la notificación de una tarea en producción |
+| `fabrica notificar <id> [--enviar] [--para <correo>] [--mensaje "<texto>"]` | Muestra o envía la notificación de una tarea en producción |
 | `fabrica preguntar "<consulta>"` | Consulta la base de conocimiento, con citas verificadas |
-| `fabrica aprender <ruta>` | Incorpora una carpeta de referencia a la base de conocimiento |
-| `fabrica replay` · `metricas` | Reevalúa decisiones pasadas · costos y causas de bloqueo |
+| `fabrica indice` | Regenera el índice de la base de conocimiento |
+| `fabrica bibliotecario <id>` | Incorpora a la base de conocimiento lo aprendido en una tarea cerrada |
+| `fabrica lint-cerebro` | Busca contradicciones en la base de conocimiento (solo informa) |
+| `fabrica cerebro-sync [--seco]` | Lleva lo aprendido al repositorio de conocimiento como pull request en borrador |
+| `fabrica replay [prefijo]` · `metricas [prefijo]` | Reevalúa decisiones pasadas · costos y causas de bloqueo |
 | `fabrica limpiar` | Elimina los worktrees de tareas cerradas |
 
 ## Ciclo de vida de una tarea
@@ -230,14 +257,15 @@ PROPUESTA ─aceptar─▶ PENDIENTE ─▶ EN_CURSO ─▶ ESPERANDO_APROBACION
 | Datos | Destino | Momento |
 |---|---|---|
 | Prompts y código del repositorio | Anthropic | En cada etapa |
-| Dependencias | npm y proxy de Go | Builder (lista cerrada de dominios); el chequeo se ejecuta fuera del sandbox con red abierta |
+| Dependencias | npm y proxy de Go | Builder, chequeo y vista previa, con la misma lista cerrada de dominios (sin GitHub) |
 | Reglas y bases de vulnerabilidades | semgrep, npm audit, govulncheck | Durante la revisión, si están instalados |
 | Servidor MCP de Playwright | npm | Revisión de UX, en repositorios con `frontend: true` |
 | Lectura de issues, proyectos y pull requests | GitHub | Lectura de fuentes y seguimiento |
+| Etiquetas `fabrica:en-curso` y `fabrica:lista` en el issue de origen | GitHub | Al tomar la tarea y al dejarla lista (solo `github-issues`) |
 | Publicación de la rama y pull request | GitHub | **Únicamente** con `fabrica aprobar` |
 | Merge | GitHub | Solo con `merge.automatico` activo y el check requerido en verde |
 | Despliegue | Según el comando configurado | Solo si existe `deploy` |
-| Notificación | Servidor SMTP o GitHub | Solo con `fabrica notificar --enviar` |
+| Notificación | Servidor SMTP, GitHub o el comando configurado | Solo con `fabrica notificar --enviar` |
 
 ## Costos
 
@@ -250,12 +278,30 @@ superarlos.
 
 - **Contenido no confiable.** El texto de un ticket puede contener instrucciones maliciosas. Los agentes lo reciben
   delimitado como datos, nunca como órdenes. Se recomienda restringir los autores admitidos con `autores`.
-- **Sandbox obligatorio.** El Builder se ejecuta en el sandbox de Claude Code con `failIfUnavailable`: si el sandbox no
-  está disponible, la tarea no se ejecuta.
-- **Chequeo fuera del sandbox.** La verificación ejecuta el código del repositorio y los cambios del Builder con acceso
-  a Docker y a la red. Se recomienda operar sobre repositorios de confianza, en una máquina o VM dedicada.
-- **Aislamiento de credenciales.** Ninguna variable de entorno con secretos llega a los agentes, que tampoco pueden
-  leer `~/.ssh`, `~/.aws`, `~/.config/gh` ni el archivo de credenciales de la herramienta.
+- **Sandbox obligatorio.** El Bash del Builder y el del revisor del resultado se ejecutan en el sandbox de Claude Code
+  con `failIfUnavailable`, con settings por tarea: escriben solo en sus worktrees, en los clones de su tarea y en el
+  temporal y las cachés de la tarea. Los demás agentes no tienen Bash libre; los contienen los permisos de Claude Code,
+  no el sistema operativo: corren como el usuario y con su autenticación de Claude Code.
+- **Código de la rama aislado.** Todo lo que ejecuta código de la rama (el chequeo, el hook de cierre del Builder y la
+  aplicación de la vista previa y de la revisión de UX/UI) corre dentro de `srt` con un perfil por tarea: red únicamente
+  a los registros de dependencias y a `localhost`, sin acceso a GitHub; escritura limitada a los worktrees, los clones y
+  el temporal y las cachés de la tarea; sin lectura de credenciales, del llavero de macOS, de `~/Documents` fuera de la
+  tarea, de `~/.claude` ni de los datos de otras aplicaciones; sin Apple Events ni Docker. Las herramientas del escaneo
+  (gosec, govulncheck, semgrep, gitleaks, `npm audit`) corren en `srt` con un perfil propio, sin escribir los worktrees,
+  y con la configuración de la fábrica: los ignores de la rama no esconden hallazgos. Antes de cada tarea, una sonda
+  comprueba que dentro de `srt` GitHub no responda y el home no se escriba; si `srt` no está o no aísla, no se ejecuta
+  nada. Un repositorio cuyo chequeo necesite contenedores debe declararlos en `servicios` de `fabrica.yaml`.
+- **GitHub con un token propio.** Todo lo que la fábrica hace contra GitHub usa `FABRICA_GITHUB_TOKEN` y nunca el
+  llavero, la sesión de gh ni las llaves ssh del usuario. El token solo llega a los procesos de gh y de git que hablan
+  con GitHub; ni los agentes ni el código encerrado lo reciben. Se recomienda proteger `main` con una regla que exija el
+  check requerido sin excepciones, para que el token no pueda integrar nada sin el CI.
+- **Sin configuración plantada.** Los agentes corren con el directorio de trabajo en una carpeta propia de la fábrica,
+  fuera de todo repo, que se verifica antes de cada llamada; los worktrees llegan solo como directorios adicionales.
+- **Aislamiento de credenciales.** Ninguna variable de entorno con secretos llega a los agentes ni al código encerrado.
+- **Riesgos residuales.** `localhost` queda abierto para el código encerrado, los registros de dependencias son una
+  salida posible para datos de la tarea, el servidor MCP de Playwright, `ui-scan` y el despliegue corren fuera de todo
+  encierro, y el despliegue usa las credenciales del usuario. La lista completa, con lo que está probado y lo que no,
+  está en [docs/seguridad.md](docs/seguridad.md).
 
 ## Claude Code y autenticación
 

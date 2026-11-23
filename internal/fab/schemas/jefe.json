@@ -1,0 +1,22 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["sabe", "respuesta", "citas"],
+  "properties": {
+    "sabe": {"type": "boolean"},
+    "respuesta": {"type": "string"},
+    "citas": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["archivo", "linea", "texto"],
+        "properties": {
+          "archivo": {"type": "string"},
+          "linea": {"type": "integer"},
+          "texto": {"type": "string"}
+        }
+      }
+    }
+  }
+}

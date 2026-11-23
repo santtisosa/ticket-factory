@@ -1,0 +1,16 @@
+# Ejemplo: `fabrica serve` como servicio de systemd del usuario.
+# Reemplazar las rutas, copiar a ~/.config/systemd/user/ y activar con
+# `systemctl --user enable --now ticket-factory`.
+[Unit]
+Description=ticket-factory (línea, ingesta y panel web)
+After=network-online.target
+
+[Service]
+WorkingDirectory=%h/espacio-fabrica
+ExecStart=%h/ticket-factory/fabrica serve
+Restart=on-failure
+RestartSec=60
+Nice=10
+
+[Install]
+WantedBy=default.target

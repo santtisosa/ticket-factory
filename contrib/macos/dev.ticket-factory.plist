@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- Ejemplo: `fabrica serve` como agente de launchd de la sesión del usuario.
+     Reemplazar RUTA_DEL_BINARIO, RUTA_DEL_ESPACIO y el PATH según la instalación, copiar a
+     ~/Library/LaunchAgents/ y cargar con `launchctl bootstrap gui/$(id -u) <archivo>`. -->
+<plist version="1.0">
+<dict>
+	<key>Label</key>
+	<string>dev.ticket-factory</string>
+	<key>ProgramArguments</key>
+	<array>
+		<string>RUTA_DEL_BINARIO/fabrica</string>
+		<string>serve</string>
+	</array>
+	<key>WorkingDirectory</key>
+	<string>RUTA_DEL_ESPACIO</string>
+	<key>EnvironmentVariables</key>
+	<dict>
+		<!-- launchd arranca con un PATH mínimo: incluir dónde están claude, srt, node, git y gh. -->
+		<key>PATH</key>
+		<string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+	</dict>
+	<key>RunAtLoad</key>
+	<true/>
+	<key>KeepAlive</key>
+	<dict>
+		<!-- Se reinicia si termina con error; no si se detuvo con bootout. -->
+		<key>SuccessfulExit</key>
+		<false/>
+	</dict>
+	<key>ThrottleInterval</key>
+	<integer>60</integer>
+	<key>ProcessType</key>
+	<string>Background</string>
+	<key>Nice</key>
+	<integer>10</integer>
+	<key>StandardOutPath</key>
+	<string>RUTA_DEL_ESPACIO/runs/.cache/serve.log</string>
+	<key>StandardErrorPath</key>
+	<string>RUTA_DEL_ESPACIO/runs/.cache/serve.log</string>
+</dict>
+</plist>

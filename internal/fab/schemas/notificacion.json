@@ -1,0 +1,11 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["mensaje"],
+  "properties": {
+    "mensaje": {
+      "type": "string",
+      "description": "El mensaje para quien pidió el cambio: qué cambió, dónde está y cómo comprobarlo."
+    }
+  }
+}

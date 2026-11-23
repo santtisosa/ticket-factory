@@ -1,0 +1,77 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "veredicto",
+    "hallazgos"
+  ],
+  "properties": {
+    "veredicto": {
+      "type": "string",
+      "enum": [
+        "ok",
+        "falla"
+      ]
+    },
+    "hallazgos": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "severidad",
+          "regla",
+          "repo",
+          "archivo",
+          "linea",
+          "evidencia",
+          "detalle",
+          "confianza"
+        ],
+        "properties": {
+          "severidad": {
+            "type": "string",
+            "enum": [
+              "CRITICAL",
+              "HIGH",
+              "MEDIUM",
+              "LOW"
+            ]
+          },
+          "regla": {
+            "type": "string"
+          },
+          "repo": {
+            "type": "string"
+          },
+          "archivo": {
+            "type": "string"
+          },
+          "linea": {
+            "type": "integer"
+          },
+          "ca": {
+            "type": "string"
+          },
+          "evidencia": {
+            "type": "string"
+          },
+          "detalle": {
+            "type": "string"
+          },
+          "confianza": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 10
+          }
+        }
+      }
+    },
+    "verificado": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  }
+}

@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ticket-factory</title>
+<link rel="icon" href="icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Azeret+Mono:wght@400;500&family=Geist+Mono:wght@400;500;600;700&family=Geist+Pixel&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="estilo.css">
+</head>
+<body>
+<header class="barra">
+  <a class="marca" href="/" aria-label="factory, inicio">
+    <span class="palabra">factory<span class="cursor" aria-hidden="true">▊</span></span>
+  </a>
+  <div class="barra-estado" id="fabrica" aria-live="polite"></div>
+  <div class="barra-gasto" id="gasto"></div>
+</header>
+<pre class="pulso" id="pulso" aria-hidden="true"></pre>
+
+<main class="grilla" id="grilla" data-pestana="bandeja">
+  <!-- La barra de la izquierda: lo único que scrollea. Solo las tareas por hacer. -->
+  <aside class="bandeja" id="panel-bandeja" role="tabpanel" aria-labelledby="tab-bandeja" aria-label="Tareas">
+    <div id="grupos"></div>
+  </aside>
+
+  <div class="derecha">
+  <!-- Arriba, fija: la tarea elegida y el diagrama. Es lo que se mira mientras la fábrica trabaja. -->
+  <section class="linea" aria-label="La línea">
+    <div class="linea-cabeza" id="cabeza"></div>
+    <div class="diagrama" id="diagrama-caja">
+      <pre class="diagrama-pre" id="diagrama" aria-hidden="true"></pre>
+      <div class="diagrama-botones" id="diagrama-botones"></div>
+    </div>
+    <p class="leyenda" aria-hidden="true">
+      <span class="t-ok">✓ listo</span><span class="t-corre">▪ trabaja</span><span class="t-espera">◆ espera</span><span class="t-falla">✗ falló</span><span class="t-idle">· sin pasar</span><span class="t-idle">click en un agente: su detalle</span>
+    </p>
+    <div class="pestanas" role="tablist" aria-label="Vista">
+      <button role="tab" id="tab-bandeja" aria-controls="panel-bandeja" data-pestana="bandeja">Bandeja <b id="tab-n"></b></button>
+      <button role="tab" id="tab-detalle" aria-controls="panel-detalle" data-pestana="detalle">Detalle</button>
+    </div>
+  </section>
+
+
+  <section class="detalle" id="panel-detalle" role="tabpanel" aria-labelledby="tab-detalle">
+    <div id="accion"></div>
+    <div class="tarjeta marco" data-titulo="agente" id="agente"></div>
+    <details class="tarjeta registro-tarjeta" id="registro-caja">
+      <summary class="rotulo">Registro completo</summary>
+      <ol class="registro" id="registro"></ol>
+    </details>
+  </section>
+  </div>
+
+</main>
+
+<footer class="pie">
+  <span class="seg seg-marca">factory</span>
+  <span class="seg">local · lee runs/</span>
+  <span class="seg" id="pie-tareas"></span>
+  <span class="seg atajos"><kbd>j</kbd><kbd>k</kbd> tareas · <kbd>1</kbd>–<kbd>9</kbd> agentes · <kbd>esc</kbd> soltar</span>
+</footer>
+<div class="aviso" id="aviso" role="status" aria-live="polite"></div>
+<script type="module" src="app.js"></script>
+</body>
+</html>

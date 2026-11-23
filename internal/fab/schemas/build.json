@@ -1,0 +1,24 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["resumen", "tests_aceptacion", "listo"],
+  "properties": {
+    "resumen": {"type": "string"},
+    "tests_aceptacion": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["ca", "repo", "archivo", "test"],
+        "properties": {
+          "ca": {"type": "string", "pattern": "^CA-[0-9]+$", "description": "un solo criterio, tal cual la spec: CA-1, CA-2... nunca un rango ni una lista"},
+          "repo": {"type": "string"},
+          "archivo": {"type": "string", "description": "ruta del archivo de aceptación, relativa al repo"},
+          "test": {"type": "string", "description": "el nombre exacto del test como está escrito en el archivo (para Go, el nombre de la func)"}
+        }
+      }
+    },
+    "listo": {"type": "boolean"},
+    "bloqueo": {"type": "string"}
+  }
+}

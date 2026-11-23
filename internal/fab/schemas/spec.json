@@ -1,0 +1,99 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "titulo",
+    "tipo",
+    "repos",
+    "rutas",
+    "criterios",
+    "spec_md",
+    "faltaAclarar",
+    "frenar"
+  ],
+  "properties": {
+    "titulo": {
+      "type": "string"
+    },
+    "tipo": {
+      "type": "string",
+      "enum": [
+        "bug",
+        "feature",
+        "ajuste"
+      ]
+    },
+    "repos": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "enum": [
+          "intern-backend",
+          "intern-frontend"
+        ]
+      }
+    },
+    "criterios": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "texto"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "texto": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "spec_md": {
+      "type": "string"
+    },
+    "faltaAclarar": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "pregunta",
+          "defaultRecomendado",
+          "impacto"
+        ],
+        "properties": {
+          "pregunta": {
+            "type": "string"
+          },
+          "defaultRecomendado": {
+            "type": "string"
+          },
+          "impacto": {
+            "type": "string",
+            "enum": [
+              "bajo",
+              "alcance"
+            ]
+          }
+        }
+      }
+    },
+    "frenar": {
+      "type": "boolean"
+    },
+    "motivoFrenar": {
+      "type": "string"
+    },
+    "rutas": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "rutas del frontend que toca el cambio (ej. /clientes); vacío si no hay UI"
+    }
+  }
+}
